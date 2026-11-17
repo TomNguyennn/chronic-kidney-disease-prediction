@@ -1,0 +1,86 @@
+{
+  "numeric": [
+    "age",
+    "bp",
+    "bgr",
+    "bu",
+    "sc",
+    "sod",
+    "pot",
+    "hemo",
+    "pcv",
+    "wbcc",
+    "rbcc"
+  ],
+  "ordered": {
+    "sg": [
+      1.005,
+      1.01,
+      1.015,
+      1.02,
+      1.025
+    ],
+    "al": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "su": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5
+    ]
+  },
+  "categorical": {
+    "rbc": [
+      "normal",
+      "abnormal"
+    ],
+    "pc": [
+      "normal",
+      "abnormal"
+    ],
+    "pcc": [
+      "notpresent",
+      "present"
+    ],
+    "ba": [
+      "notpresent",
+      "present"
+    ],
+    "htn": [
+      "no",
+      "yes"
+    ],
+    "dm": [
+      "no",
+      "yes"
+    ],
+    "cad": [
+      "no",
+      "yes"
+    ],
+    "appet": [
+      "good",
+      "poor"
+    ],
+    "pe": [
+      "no",
+      "yes"
+    ],
+    "ane": [
+      "no",
+      "yes"
+    ]
+  },
+  "target": {
+    "ckd": 1,
+    "notckd": 0
+  }
+}

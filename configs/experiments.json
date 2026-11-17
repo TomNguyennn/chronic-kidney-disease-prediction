@@ -1,0 +1,478 @@
+[
+  {
+    "experiment_id": "E00-most_frequent",
+    "model": "dummy",
+    "model_params": {
+      "strategy": "most_frequent"
+    }
+  },
+  {
+    "experiment_id": "E00-always_ckd",
+    "model": "dummy",
+    "model_params": {
+      "strategy": "always_ckd"
+    }
+  },
+  {
+    "experiment_id": "E01-lr",
+    "model": "lr",
+    "preprocessing": {},
+    "model_params": {},
+    "seeds": [
+      42
+    ]
+  },
+  {
+    "experiment_id": "E02-lr",
+    "model": "lr",
+    "preprocessing": {
+      "indicators": true
+    },
+    "model_params": {},
+    "seeds": [
+      42
+    ]
+  },
+  {
+    "experiment_id": "E03-lr",
+    "model": "lr",
+    "preprocessing": {
+      "imputer": "knn"
+    },
+    "model_params": {},
+    "seeds": [
+      42
+    ]
+  },
+  {
+    "experiment_id": "E04-lr",
+    "model": "lr",
+    "preprocessing": {
+      "imputer": "iterative"
+    },
+    "model_params": {},
+    "seeds": [
+      42
+    ]
+  },
+  {
+    "experiment_id": "E05-30-lr",
+    "model": "lr",
+    "preprocessing": {
+      "missing_threshold": 0.3
+    },
+    "model_params": {},
+    "seeds": [
+      42
+    ]
+  },
+  {
+    "experiment_id": "E05-50-lr",
+    "model": "lr",
+    "preprocessing": {
+      "missing_threshold": 0.5
+    },
+    "model_params": {},
+    "seeds": [
+      42
+    ]
+  },
+  {
+    "experiment_id": "E06-history-lr",
+    "model": "lr",
+    "preprocessing": {
+      "feature_set": "history"
+    },
+    "model_params": {},
+    "seeds": [
+      42
+    ]
+  },
+  {
+    "experiment_id": "E06-redundant-lr",
+    "model": "lr",
+    "preprocessing": {
+      "selection": "redundant"
+    },
+    "model_params": {},
+    "seeds": [
+      42
+    ]
+  },
+  {
+    "experiment_id": "E06-model-lr",
+    "model": "lr",
+    "preprocessing": {
+      "selection": "model"
+    },
+    "model_params": {},
+    "seeds": [
+      42
+    ]
+  },
+  {
+    "experiment_id": "E06-ordered-onehot-lr",
+    "model": "lr",
+    "preprocessing": {
+      "ordered_onehot": true
+    },
+    "model_params": {},
+    "seeds": [
+      42
+    ]
+  },
+  {
+    "experiment_id": "E06-unknown-lr",
+    "model": "lr",
+    "preprocessing": {
+      "unknown": true
+    },
+    "model_params": {},
+    "seeds": [
+      42
+    ]
+  },
+  {
+    "experiment_id": "E08-lr",
+    "model": "lr",
+    "preprocessing": {
+      "logs": true
+    },
+    "model_params": {},
+    "seeds": [
+      42
+    ]
+  },
+  {
+    "experiment_id": "E07-robust-lr",
+    "model": "lr",
+    "preprocessing": {
+      "scaler": "robust"
+    },
+    "model_params": {},
+    "seeds": [
+      42
+    ]
+  },
+  {
+    "experiment_id": "E07-minmax-lr",
+    "model": "lr",
+    "preprocessing": {
+      "scaler": "minmax"
+    },
+    "model_params": {},
+    "seeds": [
+      42
+    ]
+  },
+  {
+    "experiment_id": "E01-rf",
+    "model": "rf",
+    "preprocessing": {},
+    "model_params": {},
+    "seeds": [
+      42
+    ]
+  },
+  {
+    "experiment_id": "E02-rf",
+    "model": "rf",
+    "preprocessing": {
+      "indicators": true
+    },
+    "model_params": {},
+    "seeds": [
+      42
+    ]
+  },
+  {
+    "experiment_id": "E03-rf",
+    "model": "rf",
+    "preprocessing": {
+      "imputer": "knn"
+    },
+    "model_params": {},
+    "seeds": [
+      42
+    ]
+  },
+  {
+    "experiment_id": "E04-rf",
+    "model": "rf",
+    "preprocessing": {
+      "imputer": "iterative"
+    },
+    "model_params": {},
+    "seeds": [
+      42
+    ]
+  },
+  {
+    "experiment_id": "E05-30-rf",
+    "model": "rf",
+    "preprocessing": {
+      "missing_threshold": 0.3
+    },
+    "model_params": {},
+    "seeds": [
+      42
+    ]
+  },
+  {
+    "experiment_id": "E05-50-rf",
+    "model": "rf",
+    "preprocessing": {
+      "missing_threshold": 0.5
+    },
+    "model_params": {},
+    "seeds": [
+      42
+    ]
+  },
+  {
+    "experiment_id": "E06-history-rf",
+    "model": "rf",
+    "preprocessing": {
+      "feature_set": "history"
+    },
+    "model_params": {},
+    "seeds": [
+      42
+    ]
+  },
+  {
+    "experiment_id": "E06-redundant-rf",
+    "model": "rf",
+    "preprocessing": {
+      "selection": "redundant"
+    },
+    "model_params": {},
+    "seeds": [
+      42
+    ]
+  },
+  {
+    "experiment_id": "E06-model-rf",
+    "model": "rf",
+    "preprocessing": {
+      "selection": "model"
+    },
+    "model_params": {},
+    "seeds": [
+      42
+    ]
+  },
+  {
+    "experiment_id": "E06-ordered-onehot-rf",
+    "model": "rf",
+    "preprocessing": {
+      "ordered_onehot": true
+    },
+    "model_params": {},
+    "seeds": [
+      42
+    ]
+  },
+  {
+    "experiment_id": "E06-unknown-rf",
+    "model": "rf",
+    "preprocessing": {
+      "unknown": true
+    },
+    "model_params": {},
+    "seeds": [
+      42
+    ]
+  },
+  {
+    "experiment_id": "E08-rf",
+    "model": "rf",
+    "preprocessing": {
+      "logs": true
+    },
+    "model_params": {},
+    "seeds": [
+      42
+    ]
+  },
+  {
+    "experiment_id": "E01-nn",
+    "model": "nn",
+    "preprocessing": {},
+    "model_params": {},
+    "seeds": [
+      42,
+      43,
+      44
+    ]
+  },
+  {
+    "experiment_id": "E02-nn",
+    "model": "nn",
+    "preprocessing": {
+      "indicators": true
+    },
+    "model_params": {},
+    "seeds": [
+      42,
+      43,
+      44
+    ]
+  },
+  {
+    "experiment_id": "E03-nn",
+    "model": "nn",
+    "preprocessing": {
+      "imputer": "knn"
+    },
+    "model_params": {},
+    "seeds": [
+      42,
+      43,
+      44
+    ]
+  },
+  {
+    "experiment_id": "E04-nn",
+    "model": "nn",
+    "preprocessing": {
+      "imputer": "iterative"
+    },
+    "model_params": {},
+    "seeds": [
+      42,
+      43,
+      44
+    ]
+  },
+  {
+    "experiment_id": "E05-30-nn",
+    "model": "nn",
+    "preprocessing": {
+      "missing_threshold": 0.3
+    },
+    "model_params": {},
+    "seeds": [
+      42,
+      43,
+      44
+    ]
+  },
+  {
+    "experiment_id": "E05-50-nn",
+    "model": "nn",
+    "preprocessing": {
+      "missing_threshold": 0.5
+    },
+    "model_params": {},
+    "seeds": [
+      42,
+      43,
+      44
+    ]
+  },
+  {
+    "experiment_id": "E06-history-nn",
+    "model": "nn",
+    "preprocessing": {
+      "feature_set": "history"
+    },
+    "model_params": {},
+    "seeds": [
+      42,
+      43,
+      44
+    ]
+  },
+  {
+    "experiment_id": "E06-redundant-nn",
+    "model": "nn",
+    "preprocessing": {
+      "selection": "redundant"
+    },
+    "model_params": {},
+    "seeds": [
+      42,
+      43,
+      44
+    ]
+  },
+  {
+    "experiment_id": "E06-model-nn",
+    "model": "nn",
+    "preprocessing": {
+      "selection": "model"
+    },
+    "model_params": {},
+    "seeds": [
+      42,
+      43,
+      44
+    ]
+  },
+  {
+    "experiment_id": "E06-ordered-onehot-nn",
+    "model": "nn",
+    "preprocessing": {
+      "ordered_onehot": true
+    },
+    "model_params": {},
+    "seeds": [
+      42,
+      43,
+      44
+    ]
+  },
+  {
+    "experiment_id": "E06-unknown-nn",
+    "model": "nn",
+    "preprocessing": {
+      "unknown": true
+    },
+    "model_params": {},
+    "seeds": [
+      42,
+      43,
+      44
+    ]
+  },
+  {
+    "experiment_id": "E08-nn",
+    "model": "nn",
+    "preprocessing": {
+      "logs": true
+    },
+    "model_params": {},
+    "seeds": [
+      42,
+      43,
+      44
+    ]
+  },
+  {
+    "experiment_id": "E07-robust-nn",
+    "model": "nn",
+    "preprocessing": {
+      "scaler": "robust"
+    },
+    "model_params": {},
+    "seeds": [
+      42,
+      43,
+      44
+    ]
+  },
+  {
+    "experiment_id": "E07-minmax-nn",
+    "model": "nn",
+    "preprocessing": {
+      "scaler": "minmax"
+    },
+    "model_params": {},
+    "seeds": [
+      42,
+      43,
+      44
+    ]
+  }
+]
