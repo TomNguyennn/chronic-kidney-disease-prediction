@@ -26,10 +26,12 @@ class NumericImputer:
         elif self.strategy == "iterative":
             filled = torch.where(X.isnan(), self.median, X).clone()
             for _ in range(10):
-                for j in range(self.width):
-                    others = [k for k in range(self.width) if k != j]
-                    observed = ~X[:, j].isnan()
-                    predictors = filled[:, others]
+                for feature_index in range(self.width):
+                    other_features = [
+                        index for index in range(self.width) if index != feature_index
+                    ]
+                    observed = ~X[:, feature_index].isnan()
+                    predictors = filled[:, other_features]
                     center = predictors[observed].mean(0)
                     scale = predictors[observed].std(0, unbiased=False)
                     scale = torch.where(scale == 0, 1.0, scale)
@@ -42,10 +44,24 @@ class NumericImputer:
                     )
                     penalty = torch.eye(design.shape[1], dtype=X.dtype)
                     penalty[0, 0] = 0
-                    a, b = design[observed], X[observed, j]
-                    coef = torch.linalg.solve(a.T @ a + penalty, a.T @ b)
-                    filled[~observed, j] = (design @ coef)[~observed]
-                    self.steps.append((j, others, center, scale, coef))
+                    observed_design = design[observed]
+                    observed_values = X[observed, feature_index]
+                    coefficients = torch.linalg.solve(
+                        observed_design.T @ observed_design + penalty,
+                        observed_design.T @ observed_values,
+                    )
+                    filled[~observed, feature_index] = (design @ coefficients)[
+                        ~observed
+                    ]
+                    self.steps.append(
+                        (
+                            feature_index,
+                            other_features,
+                            center,
+                            scale,
+                            coefficients,
+                        )
+                    )
         return self
 
     def transform(self, X):
@@ -54,36 +70,44 @@ class NumericImputer:
         filled = torch.where(X.isnan(), self.median, X).clone()
         if self.strategy == "knn":
             scaled = (X - self.mean) / self.scale
-            for i in range(len(X)):
-                common = ~scaled[i].isnan() & ~self.donors.isnan()
-                count = common.sum(1)
-                distance = (
-                    torch.where(common, (self.donors - scaled[i]).square(), 0).sum(1)
+            for row_index in range(len(X)):
+                common = ~scaled[row_index].isnan() & ~self.donors.isnan()
+                shared_feature_count = common.sum(1)
+                distances = (
+                    torch.where(
+                        common, (self.donors - scaled[row_index]).square(), 0
+                    ).sum(1)
                     * self.width
-                    / count.clamp_min(1)
+                    / shared_feature_count.clamp_min(1)
                 )
-                distance[count == 0] = float("inf")
-                for j in torch.where(X[i].isnan())[0].tolist():
-                    eligible = ~self.donors[:, j].isnan() & torch.isfinite(distance)
-                    ids = torch.where(eligible)[0]
-                    if len(ids):
-                        ids = ids[torch.argsort(distance[ids], stable=True)[:5]]
-                        filled[i, j] = (
-                            self.donors[ids, j].mean() * self.scale[j] + self.mean[j]
+                distances[shared_feature_count == 0] = float("inf")
+                for feature_index in torch.where(X[row_index].isnan())[0].tolist():
+                    eligible = ~self.donors[:, feature_index].isnan() & torch.isfinite(
+                        distances
+                    )
+                    donor_ids = torch.where(eligible)[0]
+                    if len(donor_ids):
+                        donor_ids = donor_ids[
+                            torch.argsort(distances[donor_ids], stable=True)[:5]
+                        ]
+                        filled[row_index, feature_index] = (
+                            self.donors[donor_ids, feature_index].mean()
+                            * self.scale[feature_index]
+                            + self.mean[feature_index]
                         )
                     else:
-                        filled[i, j] = self.mean[j]
+                        filled[row_index, feature_index] = self.mean[feature_index]
         elif self.strategy == "iterative":
-            for j, others, center, scale, coef in self.steps:
+            for feature_index, other_features, center, scale, coefficients in self.steps:
                 design = torch.cat(
                     [
                         torch.ones(len(X), 1, dtype=X.dtype),
-                        (filled[:, others] - center) / scale,
+                        (filled[:, other_features] - center) / scale,
                     ],
                     1,
                 )
-                missing = X[:, j].isnan()
-                filled[missing, j] = (design @ coef)[missing]
+                missing = X[:, feature_index].isnan()
+                filled[missing, feature_index] = (design @ coefficients)[missing]
         return filled
 
 
@@ -125,8 +149,8 @@ class TabularPreprocessor:
             or torch.isinf(X).any()
         ):
             raise ValueError("Invalid schema tensor")
-        for j, name in enumerate(NAMES):
-            observed = X[:, j][~X[:, j].isnan()]
+        for feature_index, name in enumerate(NAMES):
+            observed = X[:, feature_index][~X[:, feature_index].isnan()]
             allowed = ORDERED.get(
                 name, list(range(len(CATEGORIES[name]))) if name in CATEGORIES else None
             )
@@ -142,20 +166,33 @@ class TabularPreprocessor:
     def fit(self, X, y=None):
         X = self._check(X)
         self.columns = [
-            j
-            for j, n in enumerate(NAMES)
-            if (self.feature_set == "all" or n in HISTORY)
-            and float(X[:, j].isnan().double().mean()) <= self.missing_threshold
+            feature_index
+            for feature_index, name in enumerate(NAMES)
+            if (self.feature_set == "all" or name in HISTORY)
+            and float(X[:, feature_index].isnan().double().mean())
+            <= self.missing_threshold
         ]
         if not self.columns:
             raise ValueError("No retained features")
-        for j in self.columns:
-            if X[:, j].isnan().all():
-                raise ValueError(f"Entirely missing feature: {NAMES[j]}")
-        self.numeric = [j for j in self.columns if NAMES[j] in NUMERIC]
-        self.categorical = [j for j in self.columns if j not in self.numeric]
+        for feature_index in self.columns:
+            if X[:, feature_index].isnan().all():
+                raise ValueError(f"Entirely missing feature: {NAMES[feature_index]}")
+        self.numeric = [
+            feature_index
+            for feature_index in self.columns
+            if NAMES[feature_index] in NUMERIC
+        ]
+        self.categorical = [
+            feature_index
+            for feature_index in self.columns
+            if feature_index not in self.numeric
+        ]
         self.log_columns = (
-            [j for j in self.numeric if NAMES[j] in ("sc", "bu", "bgr")]
+            [
+                feature_index
+                for feature_index in self.numeric
+                if NAMES[feature_index] in ("sc", "bu", "bgr")
+            ]
             if self.logs
             else []
         )
@@ -164,27 +201,31 @@ class TabularPreprocessor:
             NumericImputer(self.imputer).fit(numeric) if numeric.shape[1] else None
         )
         self.modes = {}
-        for j in self.categorical:
-            v, c = X[:, j][~X[:, j].isnan()].unique(sorted=True, return_counts=True)
-            self.modes[j] = v[c.argmax()]
+        for feature_index in self.categorical:
+            observed = X[:, feature_index][~X[:, feature_index].isnan()]
+            self.modes[feature_index] = torch.mode(observed).values
         matrix, names, scaled = self._encode(X)
         self.names = names
         self.scaled = scaled
         self.center = torch.zeros(matrix.shape[1], dtype=X.dtype)
         self.scale = torch.ones_like(self.center)
         if scaled:
-            z = matrix[:, scaled]
+            scaled_features = matrix[:, scaled]
             if self.scaler == "standard":
-                center, scale = z.mean(0), z.std(0, unbiased=False)
+                center = scaled_features.mean(0)
+                scale = scaled_features.std(0, unbiased=False)
             elif self.scaler == "robust":
-                center, scale = z.quantile(0.5, dim=0), z.quantile(
+                center = scaled_features.quantile(0.5, dim=0)
+                scale = scaled_features.quantile(
                     0.75, dim=0
-                ) - z.quantile(0.25, dim=0)
+                ) - scaled_features.quantile(0.25, dim=0)
             elif self.scaler == "minmax":
-                center, scale = z.min(0).values, z.max(0).values - z.min(0).values
+                center = scaled_features.min(0).values
+                scale = scaled_features.max(0).values - center
             else:
-                center, scale = torch.zeros(z.shape[1], dtype=X.dtype), torch.ones(
-                    z.shape[1], dtype=X.dtype
+                center = torch.zeros(scaled_features.shape[1], dtype=X.dtype)
+                scale = torch.ones(
+                    scaled_features.shape[1], dtype=X.dtype
                 )
             self.center[scaled] = center
             self.scale[scaled] = torch.where(scale == 0, 1.0, scale)
@@ -192,30 +233,42 @@ class TabularPreprocessor:
         if self.selection == "redundant":
             # Pairwise observed Spearman ranks; ties receive average ranks.
             def rank(v):
-                _, inv, counts = v.unique(
+                _, inverse_indices, counts = v.unique(
                     sorted=True, return_inverse=True, return_counts=True
                 )
                 ranks = counts.cumsum(0) - counts + (counts - 1) / 2
-                return ranks[inv].double()
+                return ranks[inverse_indices].double()
 
             retained = []
-            for j in self.numeric:
+            for feature_index in self.numeric:
                 redundant = False
-                for k in retained:
-                    mask = ~X[:, j].isnan() & ~X[:, k].isnan()
-                    if mask.sum() < 3:
+                for retained_index in retained:
+                    observed_together = (
+                        ~X[:, feature_index].isnan()
+                        & ~X[:, retained_index].isnan()
+                    )
+                    if observed_together.sum() < 3:
                         continue
-                    a, b = rank(X[mask, j]), rank(X[mask, k])
-                    a -= a.mean()
-                    b -= b.mean()
-                    denom = a.norm() * b.norm()
-                    if denom > 0 and abs(float(a @ b / denom)) > 0.95:
-                        redundant = True
-                        break
+                    feature_ranks = rank(X[observed_together, feature_index])
+                    retained_ranks = rank(X[observed_together, retained_index])
+                    feature_ranks -= feature_ranks.mean()
+                    retained_ranks -= retained_ranks.mean()
+                    denominator = feature_ranks.norm() * retained_ranks.norm()
+                    if denominator > 0:
+                        correlation = feature_ranks @ retained_ranks / denominator
+                        if abs(float(correlation)) > 0.95:
+                            redundant = True
+                            break
                 if not redundant:
-                    retained.append(j)
-            removed = {NAMES[j] for j in self.numeric if j not in retained}
-            self.selected = [i for i, n in enumerate(names) if n not in removed]
+                    retained.append(feature_index)
+            removed = {
+                NAMES[feature_index]
+                for feature_index in self.numeric
+                if feature_index not in retained
+            }
+            self.selected = [
+                index for index, name in enumerate(names) if name not in removed
+            ]
         elif self.selection == "model":
             if y is None:
                 raise ValueError("Selection requires training labels")
@@ -225,29 +278,31 @@ class TabularPreprocessor:
                     : max(1, math.ceil(len(names) / 2))
                 ].tolist()
             )
-        self.feature_names_ = [names[i] for i in self.selected]
+        self.feature_names_ = [names[index] for index in self.selected]
         return self
 
     def _numeric(self, X):
-        z = X[:, self.numeric]
+        numeric = X[:, self.numeric]
         if self.log_columns:
-            z = torch.cat([z, torch.log1p(X[:, self.log_columns])], 1)
-        return z
+            numeric = torch.cat(
+                [numeric, torch.log1p(X[:, self.log_columns])], 1
+            )
+        return numeric
 
     def _encode(self, X):
-        z = self._numeric(X)
+        numeric = self._numeric(X)
         if self.numeric_imputer is not None:
-            z = self.numeric_imputer.transform(z)
-        parts = [z]
-        names = [NAMES[j] for j in self.numeric] + [
-            f"log1p_{NAMES[j]}" for j in self.log_columns
+            numeric = self.numeric_imputer.transform(numeric)
+        parts = [numeric]
+        names = [NAMES[index] for index in self.numeric] + [
+            f"log1p_{NAMES[index]}" for index in self.log_columns
         ]
         scaled = list(range(len(names)))
-        for j in self.categorical:
-            name = NAMES[j]
-            col = X[:, j]
-            missing = col.isnan()
-            filled = torch.where(missing, self.modes[j], col)
+        for feature_index in self.categorical:
+            name = NAMES[feature_index]
+            column = X[:, feature_index]
+            missing = column.isnan()
+            filled = torch.where(missing, self.modes[feature_index], column)
             if name in ORDERED and not self.ordered_onehot:
                 # Unknown gets a separate indicator, never an artificial ordinal value.
                 parts.append(filled[:, None])
@@ -277,15 +332,15 @@ class TabularPreprocessor:
                 names.append(name)
         if self.indicators:
             parts.append(X[:, self.columns].isnan().double())
-            names += [NAMES[j] + "_missing" for j in self.columns]
+            names += [NAMES[index] + "_missing" for index in self.columns]
         return torch.cat(parts, 1), names, scaled
 
     def transform(self, X):
         X = self._check(X)
         if not hasattr(self, "selected"):
             raise ValueError("Preprocessor is not fitted")
-        z, _, _ = self._encode(X)
-        z = ((z - self.center) / self.scale)[:, self.selected]
-        if not torch.isfinite(z).all():
+        encoded, _, _ = self._encode(X)
+        transformed = ((encoded - self.center) / self.scale)[:, self.selected]
+        if not torch.isfinite(transformed).all():
             raise ValueError("Nonfinite transformed features")
-        return z
+        return transformed

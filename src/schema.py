@@ -1,7 +1,5 @@
 """Fixed source semantics; parsing never learns from another row."""
 
-from pathlib import Path
-import json
 import pandas as pd
 import torch
 
@@ -28,24 +26,30 @@ HISTORY = ["age", "bp", "htn", "dm", "cad", "appet", "pe"]
 
 
 def load_data(path, row_ids=None):
-    raw = pd.read_csv(path, dtype=str, keep_default_na=False)
-    if set(raw.columns) != set(NAMES + ["class"]):
+    raw_data = pd.read_csv(path, dtype=str, keep_default_na=False)
+    if set(raw_data.columns) != set(NAMES + ["class"]):
         raise ValueError("CSV must match the documented CKD schema")
     if row_ids is not None:
-        raw = raw.iloc[row_ids]
-    values, audit = [], []
+        raw_data = raw_data.iloc[row_ids]
+    feature_values = []
+    audit = []
     for name in NAMES:
-        text = raw[name].str.strip()
-        missing = text.isin(["", "?", "nan", "NaN"])
+        text_values = raw_data[name].str.strip()
+        missing = text_values.isin(["", "?", "nan", "NaN"])
         if name in CATEGORIES:
-            col = text.map({v: i for i, v in enumerate(CATEGORIES[name])}).astype(float)
+            category_codes = {
+                value: index for index, value in enumerate(CATEGORIES[name])
+            }
+            column = text_values.map(category_codes).astype(float)
         else:
-            col = pd.to_numeric(text.mask(missing), errors="coerce").astype(float)
+            column = pd.to_numeric(
+                text_values.mask(missing), errors="coerce"
+            ).astype(float)
             if name in ORDERED:
-                col = col.where(col.isin(ORDERED[name]))
+                column = column.where(column.isin(ORDERED[name]))
             else:
-                col = col.where((col >= 0) & (col < float("inf")))
-        invalid = ~missing & col.isna()
+                column = column.where((column >= 0) & (column < float("inf")))
+        invalid = ~missing & column.isna()
         audit.append(
             dict(
                 feature=name,
@@ -54,17 +58,17 @@ def load_data(path, row_ids=None):
                 action="mark missing",
                 count_affected=int(invalid.sum()),
                 applied=True,
-                suspicious_tokens=sorted(text[invalid].unique().tolist()),
-                missing_count=int(col.isna().sum()),
-                missing_rate=float(col.isna().mean()),
+                suspicious_tokens=sorted(text_values[invalid].unique().tolist()),
+                missing_count=int(column.isna().sum()),
+                missing_rate=float(column.isna().mean()),
             )
         )
-        values.append(torch.tensor(col.to_numpy(), dtype=torch.float64))
-    target = raw["class"].str.strip().map({"ckd": 1, "notckd": 0})
-    if target.isna().any():
+        feature_values.append(torch.tensor(column.to_numpy(), dtype=torch.float64))
+    labels = raw_data["class"].str.strip().map({"ckd": 1, "notckd": 0})
+    if labels.isna().any():
         raise ValueError("Missing or unknown target")
     return (
-        torch.stack(values, 1),
-        torch.tensor(target.to_numpy(), dtype=torch.float64),
+        torch.stack(feature_values, 1),
+        torch.tensor(labels.to_numpy(), dtype=torch.float64),
         audit,
     )

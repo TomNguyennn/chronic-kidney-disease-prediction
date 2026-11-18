@@ -20,6 +20,7 @@ Tests use standard-library unittest assertions and are collected by pytest. Pyte
 ## Protocol
 
 - Input: existing `Chronic_Kidney_Disease/chronic_kidney_disease_full.csv`. Never rerun the converter as part of experiments.
+- The one-time ARFF converter is `scripts/convert_dataset.py`; run `.venv/bin/python scripts/convert_dataset.py` only when intentionally rebuilding the canonical CSV.
 - `class`: CKD=1, non-CKD=0. Fixed schema mappings preserve predictor NaNs.
 - Frozen 240/80/80 stratified split, seed 42; exact memberships and five training-only CV folds live in `data/splits/`.
 - Every fold gets fresh preprocessing, feature selection and models. NN epoch selection fits preprocessing on an internal training subset, then refits a fresh pipeline on the entire permitted training partition.

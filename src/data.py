@@ -11,10 +11,10 @@ DEFAULT_DATA = Path("Chronic_Kidney_Disease/chronic_kidney_disease_full.csv")
 
 def prepare_splits(path=DEFAULT_DATA, directory=Path("data/splits")):
     path, directory = Path(path), Path(directory)
-    digest = hashlib.sha256(path.read_bytes()).hexdigest()
-    with path.open() as f:
-        rows = list(csv.DictReader(f))
-    labels = [r["class"].strip() for r in rows]
+    dataset_hash = hashlib.sha256(path.read_bytes()).hexdigest()
+    with path.open() as data_file:
+        rows = list(csv.DictReader(data_file))
+    labels = [row["class"].strip() for row in rows]
     if set(labels) != {"ckd", "notckd"}:
         raise ValueError("Invalid targets")
     if min(labels.count(k) for k in ("ckd", "notckd")) < 10:
@@ -24,16 +24,18 @@ def prepare_splits(path=DEFAULT_DATA, directory=Path("data/splits")):
     metadata = directory / "split_metadata.json"
     if metadata.exists():
         saved = json.loads(metadata.read_text())
-        if saved["dataset_hash"] != digest:
+        if saved["dataset_hash"] != dataset_hash:
             raise ValueError("Dataset changed")
-        ids = []
+        all_ids = []
         for part in ["train", "validation", "test"]:
-            with (directory / f"{part}_ids.csv").open() as f:
-                current = [int(r["row_id"]) for r in csv.DictReader(f)]
-            if current != saved[part]:
+            with (directory / f"{part}_ids.csv").open() as manifest_file:
+                current_ids = [
+                    int(row["row_id"]) for row in csv.DictReader(manifest_file)
+                ]
+            if current_ids != saved[part]:
                 raise ValueError("Manifest changed")
-            ids.extend(current)
-        if sorted(ids) != list(range(len(rows))):
+            all_ids.extend(current_ids)
+        if sorted(all_ids) != list(range(len(rows))):
             raise ValueError("Invalid membership")
         folds = saved["cv_folds"]
         if (
@@ -44,7 +46,8 @@ def prepare_splits(path=DEFAULT_DATA, directory=Path("data/splits")):
             raise ValueError("Invalid CV membership")
         expected = hashlib.sha256(
             json.dumps(
-                {k: v for k, v in saved.items() if k != "split_id"}, sort_keys=True
+                {key: value for key, value in saved.items() if key != "split_id"},
+                sort_keys=True,
             ).encode()
         ).hexdigest()
         if saved.get("split_id") != expected:
@@ -53,9 +56,9 @@ def prepare_splits(path=DEFAULT_DATA, directory=Path("data/splits")):
     directory.mkdir(parents=True, exist_ok=True)
     if any(directory.iterdir()):
         raise ValueError("Partial split directory; inspect before recovery")
-    g = torch.Generator().manual_seed(42)
+    generator = torch.Generator().manual_seed(42)
     result = {
-        "dataset_hash": digest,
+        "dataset_hash": dataset_hash,
         "row_count": len(rows),
         "seed": 42,
         "train": [],
@@ -64,21 +67,31 @@ def prepare_splits(path=DEFAULT_DATA, directory=Path("data/splits")):
         "cv_folds": [[] for _ in range(5)],
     }
     for label in ["notckd", "ckd"]:
-        ids = torch.tensor([i for i, v in enumerate(labels) if v == label])
-        ids = ids[torch.randperm(len(ids), generator=g)].tolist()
-        a, b = int(0.6 * len(ids)), int(0.8 * len(ids))
+        label_ids = torch.tensor(
+            [row_id for row_id, row_label in enumerate(labels) if row_label == label]
+        )
+        label_ids = label_ids[
+            torch.randperm(len(label_ids), generator=generator)
+        ].tolist()
+        train_end = int(0.6 * len(label_ids))
+        validation_end = int(0.8 * len(label_ids))
         for part, subset in zip(
-            ["train", "validation", "test"], [ids[:a], ids[a:b], ids[b:]]
+            ["train", "validation", "test"],
+            [
+                label_ids[:train_end],
+                label_ids[train_end:validation_end],
+                label_ids[validation_end:],
+            ],
         ):
             result[part].extend(subset)
-        for i, row_id in enumerate(ids[:a]):
-            result["cv_folds"][i % 5].append(row_id)
+        for position, row_id in enumerate(label_ids[:train_end]):
+            result["cv_folds"][position % 5].append(row_id)
     for part in ["train", "validation", "test"]:
         result[part].sort()
-        with (directory / f"{part}_ids.csv").open("w") as f:
-            writer = csv.writer(f)
+        with (directory / f"{part}_ids.csv").open("w") as manifest_file:
+            writer = csv.writer(manifest_file)
             writer.writerow(["row_id"])
-            writer.writerows([[i] for i in result[part]])
+            writer.writerows([[row_id] for row_id in result[part]])
     result["split_id"] = hashlib.sha256(
         json.dumps(result, sort_keys=True).encode()
     ).hexdigest()

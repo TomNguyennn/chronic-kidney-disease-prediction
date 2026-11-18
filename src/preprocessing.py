@@ -41,9 +41,8 @@ class CKDPreprocessor:
             else torch.empty(0, dtype=num.dtype)
         )
         modes = []
-        for col in cat.T:
-            values, counts = col[~col.isnan()].unique(sorted=True, return_counts=True)
-            modes.append(values[counts.argmax()])
+        for column in cat.T:
+            modes.append(torch.mode(column[~column.isnan()]).values)
         self.modes = torch.stack(modes) if modes else torch.empty(0, dtype=num.dtype)
         filled = torch.where(num.isnan(), self.medians, num)
         self.center = torch.zeros(num.shape[1], dtype=num.dtype)

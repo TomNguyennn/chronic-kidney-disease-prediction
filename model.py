@@ -32,22 +32,32 @@ SEED = 44
 def create_split(data=DATA, directory=SPLITS, seed=43):
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
-    with Path(data).open() as f:
-        rows = list(csv.DictReader(f))
-    labels = [r["class"].strip() for r in rows]
+    with Path(data).open() as data_file:
+        rows = list(csv.DictReader(data_file))
+    labels = [row["class"].strip() for row in rows]
     if set(labels) != {"ckd", "notckd"}:
         raise ValueError("Invalid targets")
-    g = torch.Generator().manual_seed(seed)
+    generator = torch.Generator().manual_seed(seed)
     parts = {"train": [], "validation": [], "test": []}
     folds = [[] for _ in range(5)]
     for label in ("notckd", "ckd"):
-        ids = torch.tensor([i for i, v in enumerate(labels) if v == label])
-        ids = ids[torch.randperm(len(ids), generator=g)].tolist()
-        a, b = int(0.6 * len(ids)), int(0.8 * len(ids))
-        for key, subset in zip(parts, (ids[:a], ids[a:b], ids[b:])):
+        label_ids = torch.tensor(
+            [row_id for row_id, row_label in enumerate(labels) if row_label == label]
+        )
+        label_ids = label_ids[
+            torch.randperm(len(label_ids), generator=generator)
+        ].tolist()
+        train_end = int(0.6 * len(label_ids))
+        validation_end = int(0.8 * len(label_ids))
+        subsets = (
+            label_ids[:train_end],
+            label_ids[train_end:validation_end],
+            label_ids[validation_end:],
+        )
+        for key, subset in zip(parts, subsets):
             parts[key] += subset
-        for i, rid in enumerate(ids[:a]):
-            folds[i % 5].append(rid)
+        for position, row_id in enumerate(label_ids[:train_end]):
+            folds[position % 5].append(row_id)
     for key in parts:
         parts[key].sort()
     manifest = {
@@ -60,53 +70,59 @@ def create_split(data=DATA, directory=SPLITS, seed=43):
     manifest["split_id"] = hashlib.sha256(
         json.dumps(manifest, sort_keys=True).encode()
     ).hexdigest()
-    for key, ids in parts.items():
-        with (directory / f"{key}_ids.csv").open("w") as f:
-            w = csv.writer(f)
-            w.writerow(["row_id"])
-            w.writerows([[i] for i in ids])
+    for key, row_ids in parts.items():
+        with (directory / f"{key}_ids.csv").open("w") as manifest_file:
+            writer = csv.writer(manifest_file)
+            writer.writerow(["row_id"])
+            writer.writerows([[row_id] for row_id in row_ids])
     write_json(directory / "split_metadata.json", manifest)
     return manifest
 
 
 def train(data=DATA, split_dir=SPLITS, results_dir=RESULTS):
-    m = create_split(data, split_dir)
-    old = json.loads(Path("data/splits/split_metadata.json").read_text())
-    if set(m["test"]) == set(old["test"]):
+    manifest = create_split(data, split_dir)
+    previous_manifest = json.loads(
+        Path("data/splits/split_metadata.json").read_text()
+    )
+    if set(manifest["test"]) == set(previous_manifest["test"]):
         raise ValueError("New test membership matches existing split")
-    X, y, _ = load_data(data, m["train"])
-    vx, vy, _ = load_data(data, m["validation"])
-    pipeline = fit_pipeline(X, y, CONFIG, SEED)
-    p = pipeline.predict_proba(vx)
-    threshold = choose_threshold(vy, p)
+    train_features, train_labels, _ = load_data(data, manifest["train"])
+    validation_features, validation_labels, _ = load_data(
+        data, manifest["validation"]
+    )
+    pipeline = fit_pipeline(train_features, train_labels, CONFIG, SEED)
+    validation_probabilities = pipeline.predict_proba(validation_features)
+    threshold = choose_threshold(validation_labels, validation_probabilities)
     if threshold is None:
         raise ValueError("No validation threshold meets precision >= 0.80")
-    tx, ty, _ = load_data(data, m["test"])
-    tp = pipeline.predict_proba(tx)
-    result = Path(results_dir)
-    result.mkdir(parents=True, exist_ok=False)
+    test_features, test_labels, _ = load_data(data, manifest["test"])
+    test_probabilities = pipeline.predict_proba(test_features)
+    result_directory = Path(results_dir)
+    result_directory.mkdir(parents=True, exist_ok=False)
     torch.save(
         {
             "pipeline": pipeline,
             "config": CONFIG,
             "seed": SEED,
             "threshold": threshold,
-            "split_id": m["split_id"],
+            "split_id": manifest["split_id"],
         },
-        result / "model.pt",
+        result_directory / "model.pt",
     )
     write_json(
-        result / "report.json",
+        result_directory / "report.json",
         {
-            "split_id": m["split_id"],
+            "split_id": manifest["split_id"],
             "threshold": threshold,
-            "validation": metrics(vy, p, threshold),
-            "test": metrics(ty, tp, threshold),
-            "test_ids": m["test"],
+            "validation": metrics(
+                validation_labels, validation_probabilities, threshold
+            ),
+            "test": metrics(test_labels, test_probabilities, threshold),
+            "test_ids": manifest["test"],
             "note": "Reshuffled holdout; dataset rows were examined in prior EDA/experiments.",
         },
     )
-    return result
+    return result_directory
 
 
 if __name__ == "__main__":
